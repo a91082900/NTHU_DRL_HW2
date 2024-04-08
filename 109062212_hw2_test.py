@@ -54,18 +54,24 @@ class Agent:
         self.model_num = 0
         self._frames = deque(maxlen=self._input_shape[0])
         self._eval_epsilon = 0.3
+        self._skip_frame = 4
+        self._skip_count = 0
+        self._prev_action = 0
         self.load_model()
 
     def act(self, obs):
-        obs = preprocess(obs)
-        while len(self._frames) < self._input_shape[0] - 1:
+        if self._skip_count % self._skip_frame == 0:
+            obs = preprocess(obs)
+            while len(self._frames) < self._input_shape[0] - 1:
+                self._frames.append(obs)
             self._frames.append(obs)
-        self._frames.append(obs)
-        if np.random.rand() < self._eval_epsilon:
-            obs = torch.from_numpy(np.array(self._frames) / 255).float().unsqueeze(0).to(self._device)
-            return self._learning_net(obs).argmax().item()
-        else:
-            return np.random.choice(np.arange(5)) # only sample NOOP and right actions
+            if np.random.rand() < self._eval_epsilon:
+                obs = torch.from_numpy(np.array(self._frames) / 255).float().unsqueeze(0).to(self._device)
+                self._prev_action = self._learning_net(obs).argmax().item()
+            else:
+                self._prev_action = np.random.choice(np.arange(5)) # only sample NOOP and right actions
+        self._skip_count += 1
+        return self._prev_action
 
     def load_model(self):
         try:
