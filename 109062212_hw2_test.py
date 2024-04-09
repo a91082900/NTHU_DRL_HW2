@@ -53,10 +53,11 @@ class Agent:
         self._learning_net = DuelingDQN(self._input_shape, 12).to(self._device)
         self.model_num = 0
         self._frames = deque(maxlen=self._input_shape[0])
-        self._eval_epsilon = 0.3
+        self._eval_epsilon = 0.4
         self._skip_frame = 4
         self._skip_count = 0
         self._prev_action = 0
+        self._prev_result = None
         self.load_model()
 
     def act(self, obs):
@@ -66,10 +67,12 @@ class Agent:
                 self._frames.append(obs)
             self._frames.append(obs)
             if np.random.rand() < self._eval_epsilon:
-                obs = torch.from_numpy(np.array(self._frames) / 255).float().unsqueeze(0).to(self._device)
-                self._prev_action = self._learning_net(obs).argmax().item()
-            else:
                 self._prev_action = np.random.choice(np.arange(5)) # only sample NOOP and right actions
+            else:
+                obs = torch.from_numpy(np.array(self._frames) / 255).float().unsqueeze(0).to(self._device)
+                q_values = self._learning_net(obs)
+                # print(q_values)
+                self._prev_action = q_values.argmax().item()
         self._skip_count += 1
         return self._prev_action
 
@@ -77,9 +80,11 @@ class Agent:
         try:
             filename = f"109062212_hw2_data"
             assert os.path.exists(filename)
-            self._learning_net.load_state_dict(torch.load(filename))
+            self._learning_net.load_state_dict(
+                torch.load(filename, map_location=self._device))
             print(f"Model loaded: {filename}")
             self.model_num += 1
-        except:
+        except Exception as e:
             print("No model loaded")
+            print(e)
         self._target_net.load_state_dict(self._learning_net.state_dict())
